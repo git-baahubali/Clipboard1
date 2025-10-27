@@ -1,24 +1,37 @@
-def normalize_node_minimal(node):
+def normalize_node_recursive_minimal(node):
     """
-    Minimal normalization:
-    - node['content'] <- joining immediate paragraph children (if any)
-    - node['children'] <- list of normalized section children only
+    Recursive minimal normalizer:
+    - 'content': joined immediate paragraph texts (local only)
+    - 'children': list of normalized section children (recursively)
+    - returns a NEW node dict; does not mutate the input
     """
-    # combine immediate paragraph texts
-    paragraphs = [
-        child.get("text", "").strip()
-        for child in node.get("children", [])
-        if child.get("type") == "paragraph" and child.get("text", "").strip()
-    ]
-    node["content"] = "\n".join(paragraphs) if paragraphs else ""
+    # defensive defaults
+    children = node.get("children", []) or []
 
-    # recursively keep only section children
-    new_children = []
-    for child in node.get("children", []):
+    # collect immediate paragraph texts (local content)
+    paragraphs = []
+    for child in children:
+        if child.get("type") == "paragraph":
+            text = child.get("text", "")
+            if text and text.strip():
+                paragraphs.append(text.strip())
+
+    content = "\n".join(paragraphs) if paragraphs else ""
+
+    # process section children recursively
+    normalized_children = []
+    for child in children:
         if child.get("type") == "section":
-            new_children.append(normalize_node_minimal(child))
-    node["children"] = new_children
+            normalized_children.append(normalize_node_recursive_minimal(child))
 
-    # Optionally drop other keys you don't need (runs/raw_text) if desired
-    # e.g., for cleanliness: node.pop('runs', None); node.pop('raw_text', None)
-    return node
+    # build new node (keep selected top-level metadata)
+    new_node = {
+        "type": "section",
+        "title": node.get("title"),
+        "level": node.get("level"),
+        "style": node.get("style"),
+        "content": content,
+        "children": normalized_children
+    }
+
+    return new_node
