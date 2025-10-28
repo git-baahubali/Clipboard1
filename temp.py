@@ -1,35 +1,34 @@
-def normalize_node_recursive_minimal(node):
+def convert_json_to_raptor_format(node):
     """
-    Recursive minimal normalizer:
-    - 'content': joined immediate paragraph texts (local only)
-    - 'children': list of normalized section children (recursively)
-    - returns a NEW node dict; does not mutate the input
+    Converts a deeply nested DOCX-parsed JSON node into RAPTOR-compatible format.
+
+    RAPTOR expects each node to have:
+      - 'title': heading/title of the section
+      - 'content': text content (may be raw_text, text, or empty string)
+      - 'children': list of similarly structured child nodes
+
+    This function:
+      - Recursively walks the tree
+      - Does NOT join paragraphs
+      - Does NOT include paragraph lists, metadata, or type fields
+      - Handles any node that has 'children' (not just type=='section')
     """
-    # defensive defaults
+
+    # --- local content ---
+    # Prefer node’s own raw_text/text, fallback to empty string
+    content = node.get("raw_text") or node.get("text") or ""
+
+    # --- recursively process children ---
     children = node.get("children", []) or []
-
-    # collect immediate paragraph texts (local content)
-    paragraphs = []
-    for child in children:
-        if child.get("type") == "paragraph":
-            text = child.get("text", "")
-            if text and text.strip():
-                paragraphs.append(text.strip())
-
-    content = "\n".join(paragraphs) if paragraphs else ""
-
-    # process section children recursively
     normalized_children = []
     for child in children:
-        if child.get("type") == "section":
-            normalized_children.append(normalize_node_recursive_minimal(child))
+        # if this node itself has nested items, process recursively
+        if child.get("children"):
+            normalized_children.append(convert_json_to_raptor_format(child))
 
-    # build new node (keep selected top-level metadata)
+    # --- build RAPTOR node ---
     new_node = {
-        "type": "section",
         "title": node.get("title"),
-        "level": node.get("level"),
-        "style": node.get("style"),
         "content": content,
         "children": normalized_children
     }
